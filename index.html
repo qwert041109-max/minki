@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>달려라 포클레인! - 상차 타이쿤 게임</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&family=Dongle:wght@700&display=swap');
+        
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background: linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%);
+        }
+
+        .game-font {
+            font-family: 'Dongle', sans-serif;
+        }
+
+        /* 공사현장 안전 띠 느낌의 레트로 테두리 */
+        .safety-border {
+            border-image: repeating-linear-gradient(-45deg, #eab308, #eab308 10px, #1e293b 10px, #1e293b 20px) 15;
+        }
+
+        /* 카세트 기어 회전 애니메이션 */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .cassette-spin {
+            animation: spin 3s linear infinite;
+        }
+
+        /* 펄스 애니메이션 */
+        .pulse-light {
+            animation: pulse-animation 2s infinite;
+        }
+
+        @keyframes pulse-animation {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col justify-between selection:bg-yellow-200">
+
+    <header class="w-full max-w-6xl mx-auto px-4 py-3 mt-4 bg-white/80 backdrop-blur-md rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="h-12 w-12 rounded-xl bg-amber-500 flex items-center justify-center text-white font-black shadow-md">
+                <i class="fa-solid fa-truck-pickup text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-extrabold tracking-tight text-amber-600 flex items-center gap-2">
+                    달려라 포클레인! <span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">상차 타이쿤 v2.2</span>
+                </h1>
+                <p class="text-xs text-slate-500">모래를 파서 제한시간 내에 노란색 덤프트럭을 가득 채우세요!</p>
+            </div>
+        </div>
+        
+        <!-- Score and Hearts Display -->
+        <div class="flex items-center gap-6 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+            <div class="text-center">
+                <span class="text-[10px] text-slate-400 block font-bold uppercase">SCORE</span>
+                <span id="score-display" class="text-xl font-extrabold text-indigo-600">0</span>
+            </div>
+            <div class="text-center">
+                <span class="text-[10px] text-slate-400 block font-bold uppercase">CASH</span>
+                <span id="cash-display" class="text-xl font-extrabold text-emerald-600">$0</span>
+            </div>
+            <div class="text-center">
+                <span class="text-[10px] text-slate-400 block font-bold uppercase">REPUTATION</span>
+                <div id="hearts-container" class="text-red-500 flex gap-0.5 text-sm mt-0.5">
+                    <i class="fa-solid fa-heart"></i>
+                    <i class="fa-solid fa-heart"></i>
+                    <i class="fa-solid fa-heart"></i>
+                    <i class="fa-solid fa-heart"></i>
+                    <i class="fa-solid fa-heart"></i>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="w-full max-w-6xl mx-auto px-4 py-4 flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Side: Physics Sandbox Play Space -->
+        <div class="lg:col-span-8 bg-white border border-slate-200 rounded-3xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden">
+            
+            <!-- Top Alert and Info bar -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 bg-amber-50 p-3 rounded-2xl border border-amber-200/60">
+                <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-1 bg-amber-500 text-white rounded-lg text-xs font-black uppercase tracking-wider">LEVEL <span id="game-level">1</span></span>
+                    <span id="target-desc" class="text-xs text-amber-900 font-bold">트럭에 모래 100%를 적재하세요!</span>
+                </div>
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <!-- Patience Timer Bar -->
+                    <span class="text-xs text-slate-500 whitespace-nowrap font-semibold">트럭 대기시간:</span>
+                    <div class="w-full sm:w-32 bg-slate-200 h-3 rounded-full overflow-hidden relative border border-slate-300">
+                        <div id="patience-fill" class="bg-gradient-to-r from-red-500 to-amber-500 h-full w-full transition-all duration-300"></div>
+                    </div>
+                    <span id="patience-text" class="text-xs text-slate-700 font-bold whitespace-nowrap">40s</span>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="relative w-full aspect-[16/9] bg-sky-200 rounded-2xl overflow-hidden border border-slate-300 shadow-inner">
+                <canvas id="physics-canvas" class="block w-full h-full bg-sky-100"></canvas>
+                
+                <!-- Game Over / Start Game Screens (Semi-transparent background so machines are visible) -->
+                <div id="menu-overlay" class="absolute inset-0 bg-slate-900/60 backdrop-blur-[3px] flex flex-col items-center justify-center p-6 text-center z-20 transition-all duration-300">
+                    <div id="overlay-content" class="space-y-4 max-w-md bg-white/95 p-6 rounded-3xl shadow-2xl border border-slate-200">
+                        <div class="h-16 w-16 bg-yellow-500 text-slate-950 rounded-2xl mx-auto flex items-center justify-center text-3xl shadow-md">
+                            <i class="fa-solid fa-helmet-safety animate-bounce"></i>
+                        </div>
+                        <h2 id="menu-title" class="text-2xl font-extrabold text-slate-800">포클레인 상차 타이쿤!</h2>
+                        <p id="menu-instructions" class="text-xs text-slate-500 leading-relaxed">
+                            <b class="text-yellow-600">A / D</b> 키로 차량을 좌우로 몰고, <b class="text-yellow-600">방향키(▲▼◀▶)</b>와 <b class="text-yellow-600">W / S</b> 키로 유압 팔을 꺾어서 노란색 덤프트럭을 가득 채우세요!
+                        </p>
+                        <button id="btn-start-game" onclick="startGame()" class="w-full px-8 py-3 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-black text-sm rounded-xl shadow-lg transition-all transform active:scale-95">
+                            게임 시작하기 <i class="fa-solid fa-play ml-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mobile Controls Panel -->
+            <div class="mt-4 p-3 bg-slate-50 rounded-2xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
+                <div>
+                    <h4 class="text-xs font-bold text-slate-600 mb-2 flex items-center gap-1.5">
+                        <i class="fa-solid fa-gamepad"></i> 모바일 터치 제어판
+                        <span class="text-[10px] text-cyan-600 bg-cyan-50 px-1.5 py-0.5 rounded font-bold">적재율: <span id="load-count">0</span>%</span>
+                    </h4>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button onmousedown="moveBase(-12)" ontouchstart="moveBase(-12)" class="py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm">◀ 후진 (A)</button>
+                        <button onmousedown="moveBase(12)" ontouchstart="moveBase(12)" class="py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm">전진 ▶ (D)</button>
+                        <button onmousedown="adjustHydraulics('boom', -0.1)" ontouchstart="adjustHydraulics('boom', -0.1)" class="py-2.5 bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold rounded-lg shadow-sm">▲ 붐 (Up)</button>
+                        <button onmousedown="adjustHydraulics('boom', 0.1)" ontouchstart="adjustHydraulics('boom', 0.1)" class="py-2.5 bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold rounded-lg shadow-sm">▼ 붐 (Down)</button>
+                    </div>
+                    <div class="grid grid-cols-4 gap-2 mt-2">
+                        <button onmousedown="adjustHydraulics('arm', -0.1)" ontouchstart="adjustHydraulics('arm', -0.1)" class="py-2.5 bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold rounded-lg shadow-sm">◀ 암 (Left)</button>
+                        <button onmousedown="adjustHydraulics('arm', 0.1)" ontouchstart="adjustHydraulics('arm', 0.1)" class="py-2.5 bg-teal-500 hover:bg-teal-600 text-white text-xs font-bold rounded-lg shadow-sm">▶ 암 (Right)</button>
+                        <button onmousedown="adjustHydraulics('bucket', -0.1)" ontouchstart="adjustHydraulics('bucket', -0.1)" class="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-sm">◀ 버켓 (W)</button>
+                        <button onmousedown="adjustHydraulics('bucket', 0.1)" ontouchstart="adjustHydraulics('bucket', 0.1)" class="py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-sm">▶ 버켓 (S)</button>
+                    </div>
+                </div>
+                <div class="text-xs text-slate-500 p-3 bg-white rounded-xl border border-slate-200">
+                    <span class="font-bold text-slate-700 block mb-1">⌨️ PC 키보드 단축키 안내</span>
+                    • <b>A / D 키:</b> 차체 이동 (좌우)<br>
+                    • <b>방향키 ▲ / ▼:</b> 붐(1마디) 각도 올리기 / 내리기<br>
+                    • <b>방향키 ◀ / ▶:</b> 암(2마디) 접기 / 펴기<br>
+                    • <b>W / S 키:</b> 버켓(바가지) 오목하게 접기 / 펼쳐서 흙 털기
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-4 space-y-6">
+            
+            <!-- Retro Cassette Radio Player (BGM) -->
+            <div class="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 text-white rounded-3xl p-5 shadow-lg space-y-4 relative overflow-hidden">
+                <div class="absolute top-0 right-0 hazard-strip h-2 w-full"></div>
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-amber-400 flex items-center gap-2">
+                        <i class="fa-solid fa-radio animate-pulse"></i> <span>📻 신나는 현장 카세트 라디오</span>
+                    </h3>
+                    <span id="radio-status" class="text-[9px] bg-red-600 text-white font-extrabold px-1.5 py-0.5 rounded animate-pulse">정지됨</span>
+                </div>
+
+                <!-- Cassette Cassette graphic -->
+                <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex justify-between items-center gap-4 relative">
+                    <div class="h-10 w-10 bg-slate-800 rounded-full flex items-center justify-center border-4 border-slate-700">
+                        <i id="cassette-gear-1" class="fa-solid fa-gear text-slate-500 text-lg"></i>
+                    </div>
+                    <div class="flex-grow text-center">
+                        <div class="text-[11px] font-mono text-emerald-400 tracking-widest bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                            📢 [뽕짝] 신나는_노동요_메들리.mp3
+                        </div>
+                    </div>
+                    <div class="h-10 w-10 bg-slate-800 rounded-full flex items-center justify-center border-4 border-slate-700">
+                        <i id="cassette-gear-2" class="fa-solid fa-gear text-slate-500 text-lg"></i>
+                    </div>
+                </div>
+
+                <!-- BGM Controls -->
+                <div class="flex gap-2">
+                    <button id="btn-play-bgm" onclick="toggleBGM()" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
+                        <i id="bgm-icon" class="fa-solid fa-play"></i> <span id="bgm-text">트로트 재생</span>
+                    </button>
+                    <div class="w-16 bg-slate-950 rounded-xl border border-slate-800 flex flex-col justify-center items-center">
+                        <span class="text-[8px] text-slate-400 font-bold block">TEMPO</span>
+                        <span class="text-xs font-mono font-bold text-amber-400">135BPM</span>
+                    </div>
+                </div>
+                <p class="text-[10px] text-slate-400 leading-normal">
+                    💡 <b>노동요 버프:</b> 실제 건설현장 소장님들이 가장 애용하는 신명나는 8비트 트로트 가락입니다. 신나게 비트를 맞추며 작업 능률을 올려보세요!
+                </p>
+            </div>
+
+            <!-- Upgrade Machinery Shop -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+                <h3 class="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <span>🚜 중장비 부품 상점</span> <i class="fa-solid fa-wrench text-amber-500"></i>
+                </h3>
+                
+                <!-- Engine Upgrade -->
+                <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
+                    <div>
+                        <span class="text-xs font-bold text-slate-800 block">엔진 업그레이드</span>
+                        <span class="text-[10px] text-slate-400 block">포클레인 좌우 이동속도 증가</span>
+                        <span id="price-engine" class="text-xs font-extrabold text-emerald-600">$1,500</span>
+                    </div>
+                    <button onclick="buyUpgrade('engine')" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all">
+                        구매
+                    </button>
+                </div>
+
+                <!-- Hydraulic Pump Upgrade -->
+                <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
+                    <div>
+                        <span class="text-xs font-bold text-slate-800 block">고압 유압 펌프</span>
+                        <span class="text-[10px] text-slate-400 block">관절(붐/암) 반응 속도 대폭 향상</span>
+                        <span id="price-hydraulic" class="text-xs font-extrabold text-emerald-600">$2,000</span>
+                    </div>
+                    <button onclick="buyUpgrade('hydraulic')" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all">
+                        구매
+                    </button>
+                </div>
+
+                <!-- Mega Bucket Upgrade -->
+                <div class="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center">
+                    <div>
+                        <span class="text-xs font-bold text-slate-800 block">대용량 메가 바가지</span>
+                        <span class="text-[10px] text-slate-400 block">한 번에 푸는 모래 양 증가</span>
+                        <span id="price-bucket" class="text-xs font-extrabold text-emerald-600">$3,500</span>
+                    </div>
+                    <button onclick="buyUpgrade('bucket')" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all">
+                        구매
+                    </button>
+                </div>
+            </div>
+
+            <!-- Game Stats / Hall of Fame -->
+            <div class="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-3">
+                <h3 class="text-md font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-trophy text-yellow-500"></i> 오늘의 건설 현장 실황
+                </h3>
+                <div class="text-xs space-y-2 text-slate-600">
+                    <div class="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span>현재 장착 엔진 레벨</span>
+                        <span id="level-engine" class="font-bold text-slate-800">Lv.1</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span>유압 전압 압력</span>
+                        <span id="level-hydraulic" class="font-bold text-slate-800">120 bar</span>
+                    </div>
+                    <div class="flex justify-between pb-1">
+                        <span>바가지 볼륨 용적</span>
+                        <span id="level-bucket" class="font-bold text-slate-800">0.45 ㎥</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer Block -->
+    <footer class="w-full max-w-6xl mx-auto px-4 py-4 border-t border-slate-200 text-center text-xs text-slate-400 flex flex-col md:flex-row justify-between items-center gap-3">
+        <span>Excavator Loading Tycoon Game © 2026. All Rights Reserved.</span>
+        <div class="flex gap-4">
+            <span class="hover:text-amber-500 transition-colors"><i class="fa-solid fa-helmet-safety mr-1"></i>건설 시뮬레이션 게임 허브</span>
+        </div>
+    </footer>
+
+    <script>
+        // --- SOUND EFFECTS SYNTHESIZER ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'engine') {
+                    // Low rumble for excavator base movement
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(45, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.2);
+                } else if (type === 'scoop') {
+                    // Scratchy sand collection noise
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.4);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.4);
+                } else if (type === 'coin') {
+                    // Bright cash register sound
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(1760, audioCtx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.35);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.35);
+                } else if (type === 'honk') {
+                    // Angry truck horn sound (dual oscillator frequency)
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.5);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.5);
+                } else if (type === 'upgrade') {
+                    // Ascending happy tone
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(330, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(660, audioCtx.currentTime + 0.25);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.3);
+                }
+            } catch (e) {
+                console.log("Audio contexts pending interaction...");
+            }
+        }
+
+        // MIDI Note translation & catchy minor pentatonic Korean Trot melody definition (A-minor-ish)
+        const trotMelody = [
+            76, 0, 76, 79, 81, 0, 81, 0, 79, 81, 76, 0, 74, 76, 74, 0,
+            72, 0, 72, 74, 76, 0, 74, 72, 69, 0, 69, 72, 69, 0, 0, 0
+        ];
+
+        let bgmPlaying = false;
+        let bgmInterval = null;
+        let currentBgmStep = 0;
+
+        function midiToFreq(note) {
+            return 440 * Math.pow(2, (note - 69) / 12);
+        }
+
+        function playBgmStep() {
+            if (!bgmPlaying) return;
+            const time = audioCtx.currentTime;
+
+            // 1. Trot rhythmic bass (쿵) - Alternating root & fifth on beat 1 and 3
+            if (currentBgmStep % 4 === 0) {
+                const bassOsc = audioCtx.createOscillator();
+                const bassGain = audioCtx.createGain();
+                bassOsc.connect(bassGain);
+                bassGain.connect(audioCtx.destination);
+
+                bassOsc.type = 'triangle';
+                const bassNote = (currentBgmStep % 8 === 0) ? 110 : 82.4; // alternating notes
+                bassOsc.frequency.setValueAtTime(bassNote, time);
+
+                bassGain.gain.setValueAtTime(0.2, time);
+                bassGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+
+                bassOsc.start(time);
+                bassOsc.stop(time + 0.22);
+            }
+
+            // 2. Offbeat Trot snare/chord (짝) - played with a short synth hit on beat 2 and 4
+            if (currentBgmStep % 4 === 2) {
+                const chordOsc = audioCtx.createOscillator();
+                const chordGain = audioCtx.createGain();
+                chordOsc.connect(chordGain);
+                chordGain.connect(audioCtx.destination);
+
+                chordOsc.type = 'sawtooth';
+                chordOsc.frequency.setValueAtTime(330, time); // A minor third/fifth chord representation
+                chordOsc.frequency.setValueAtTime(440, time + 0.01);
+                chordOsc.frequency.setValueAtTime(523, time + 0.02);
+
+                chordGain.gain.setValueAtTime(0.06, time);
+                chordGain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+
+                chordOsc.start(time);
+                chordOsc.stop(time + 0.14);
+            }
+
+            // 3. Trot Lead Vocal melody line
+            const note = trotMelody[currentBgmStep];
+            if (note > 0) {
+                const leadOsc = audioCtx.createOscillator();
+                const leadGain = audioCtx.createGain();
+                leadOsc.connect(leadGain);
+                leadGain.connect(audioCtx.destination);
+
+                leadOsc.type = 'sine'; // clean pure retro sound
+                leadOsc.frequency.setValueAtTime(midiToFreq(note), time);
+
+                // Characteristic Trot Vocal Vibrato (간드러지는 꺾기 창법 구현!)
+                leadOsc.frequency.linearRampToValueAtTime(midiToFreq(note) + 12, time + 0.1);
+                leadOsc.frequency.linearRampToValueAtTime(midiToFreq(note) - 12, time + 0.2);
+
+                leadGain.gain.setValueAtTime(0.12, time);
+                leadGain.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
+
+                leadOsc.start(time);
+                leadOsc.stop(time + 0.25);
+            }
+
+            currentBgmStep = (currentBgmStep + 1) % trotMelody.length;
+        }
+
+        function toggleBGM() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const btnText = document.getElementById('bgm-text');
+            const btnIcon = document.getElementById('bgm-icon');
+            const radioStatus = document.getElementById('radio-status');
+            const gear1 = document.getElementById('cassette-gear-1');
+            const gear2 = document.getElementById('cassette-gear-2');
+
+            if (bgmPlaying) {
+                // Pause BGM
+                bgmPlaying = false;
+                clearInterval(bgmInterval);
+                bgmInterval = null;
+
+                btnText.textContent = "트로트 재생";
+                btnIcon.className = "fa-solid fa-play";
+                radioStatus.textContent = "정지됨";
+                radioStatus.className = "text-[9px] bg-red-600 text-white font-extrabold px-1.5 py-0.5 rounded";
+                gear1.classList.remove('cassette-spin');
+                gear2.classList.remove('cassette-spin');
+            } else {
+                // Play BGM
+                bgmPlaying = true;
+                playSound('upgrade');
+
+                // Trot speed (135BPM = 16th note steps every 111ms)
+                bgmInterval = setInterval(playBgmStep, 111);
+
+                btnText.textContent = "노동요 정지";
+                btnIcon.className = "fa-solid fa-pause";
+                radioStatus.textContent = "재생중";
+                radioStatus.className = "text-[9px] bg-emerald-600 text-white font-extrabold px-1.5 py-0.5 rounded animate-pulse";
+                gear1.classList.add('cassette-spin');
+                gear2.classList.add('cassette-spin');
+            }
+        }
+
+        // --- GAME STATE VARIABLES ---
+        let gameState = {
+            isPlaying: false,
+            score: 0,
+            cash: 0,
+            reputation: 5, // Hearts count
+            level: 1,
+            truckTarget: 100, // percentage target
+            truckCurrentLoad: 0,
+            truckPatience: 40, // remaining seconds
+            truckMaxPatience: 40,
+            upgrades: {
+                engine: 1,      // Base movement speed
+                hydraulic: 1,   // Boom & Arm rotation speed
+                bucket: 1       // Bucket scale/scooping area
+            }
+        };
+
+        // Upgrade item costs
+        const UPGRADE_COSTS = {
+            engine: [1500, 3000, 6000, 12000],
+            hydraulic: [2000, 4000, 8000, 16000],
+            bucket: [3500, 7000, 14000, 28000]
+        };
+
+        // --- 물리 시뮬레이션 핵심 및 키네마틱 연산 정의 ---
+        let physicsCanvas, pCtx;
+        let animationFrameId = null;
+        let patienceTimerInterval = null;
+
+        let joints = {
+            base: { x: 120, y: 280 }, // Cabin ground mounting center
+            boomLength: 100,
+            armLength: 80,
+            bucketLength: 45,
+            
+            // Controlled node coordinates
+            p1: { x: 0, y: 0 }, // Boom end
+            p2: { x: 0, y: 0 }, // Arm end
+            p3: { x: 0, y: 0 }  // Bucket tip (tip)
+        };
+
+        // Angles
+        let boomAngle = -Math.PI / 4;
+        let armAngle = Math.PI / 3;
+        let bucketAngle = Math.PI / 6;
+
+        let soilParticles = [];
+        const MAX_SOIL = 120;
+        let TRUCK = { x: 420, y: 200, w: 120, h: 90 };
+        let draggedJoint = null;
+
+        // --- START GAME LOOP & CONTROLLER INTERFACES ---
+        function startGame() {
+            // Initialize/Reset State
+            gameState.isPlaying = true;
+            gameState.score = 0;
+            gameState.cash = 1000; // Starter cash for first upgrade soon
+            gameState.reputation = 5;
+            gameState.level = 1;
+            gameState.upgrades = { engine: 1, hydraulic: 1, bucket: 1 };
+            
+            // Hide Overlay Menu
+            document.getElementById('menu-overlay').classList.add('hidden');
+
+            // Apply Upgrades UI updates
+            updateShopUI();
+            
+            // Spawn first truck mission
+            spawnNewTruck();
+
+            // Run Canvas Engine
+            initPhysicsSimulator();
+        }
+
+        function spawnNewTruck() {
+            gameState.truckCurrentLoad = 0;
+            // Balance truck parameters based on level
+            gameState.truckMaxPatience = Math.max(20, 45 - (gameState.level * 3));
+            gameState.truckPatience = gameState.truckMaxPatience;
+
+            // Update UI fields
+            document.getElementById('game-level').textContent = gameState.level;
+            document.getElementById('target-desc').textContent = `레벨 ${gameState.level}: 모래를 덤프트럭에 한가득 싣고 발송하십시오!`;
+            updateReputationHearts();
+            updateStatsUI();
+
+            // Clear old timer if any
+            if (patienceTimerInterval) clearInterval(patienceTimerInterval);
+
+            // Active Game truck patience ticking
+            patienceTimerInterval = setInterval(() => {
+                if (!gameState.isPlaying) return;
+
+                gameState.truckPatience--;
+                
+                // Track patience bar visual
+                const percentageRemaining = (gameState.truckPatience / gameState.truckMaxPatience) * 100;
+                document.getElementById('patience-fill').style.width = `${percentageRemaining}%`;
+                document.getElementById('patience-text').textContent = `${gameState.truckPatience}s`;
+
+                if (gameState.truckPatience <= 0) {
+                    // Time's up! Truck leaves unhappily
+                    playSound('honk');
+                    gameState.reputation--;
+                    showFloatingMessage("🚨 트럭이 기다리다 지쳐 떠났습니다! 신뢰도 하락");
+                    
+                    if (gameState.reputation <= 0) {
+                        endGame(false);
+                    } else {
+                        spawnNewTruck();
+                    }
+                }
+            }, 1000);
+        }
+
+        function endGame(victory) {
+            gameState.isPlaying = false;
+            if (patienceTimerInterval) clearInterval(patienceTimerInterval);
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+            const overlay = document.getElementById('menu-overlay');
+            const title = document.getElementById('menu-title');
+            const desc = document.getElementById('menu-instructions');
+            const btn = document.getElementById('btn-start-game');
+
+            overlay.classList.remove('hidden');
+            title.textContent = "🚧 작업 종료 (GAME OVER) 🚧";
+            desc.innerHTML = `최종 점수: <span class="font-bold text-indigo-600">${gameState.score}점</span><br>모은 총 자금: <span class="font-bold text-emerald-600">$${gameState.cash.toLocaleString()}</span><br>달성 레벨: ${gameState.level}단계`;
+            btn.textContent = "다시 도전하기";
+        }
+
+        // --- 업그레이드 상점 메커니즘 코딩 ---
+        function buyUpgrade(type) {
+            const currentLevel = gameState.upgrades[type];
+            if (currentLevel >= 5) {
+                showFloatingMessage("⭐ 이미 최대 수준으로 강화되었습니다!");
+                return;
+            }
+
+            const cost = UPGRADE_COSTS[type][currentLevel - 1];
+
+            if (gameState.cash >= cost) {
+                gameState.cash -= cost;
+                gameState.upgrades[type]++;
+                playSound('upgrade');
+                showFloatingMessage(`🔧 ${type === 'engine' ? '엔진' : type === 'hydraulic' ? '유압 펌프' : '메가 바가지'} 업그레이드 완료!`);
+                
+                // Dynamic stat updates based on upgrades
+                if (type === 'bucket') {
+                    joints.bucketLength = 45 + (gameState.upgrades.bucket * 8); // Bucket physically enlarges!
+                }
+
+                updateShopUI();
+                updateStatsUI();
+            } else {
+                playSound('honk');
+                showFloatingMessage("❌ 업그레이드를 위한 회사 자금이 부족합니다!");
+            }
+        }
+
+        function updateShopUI() {
+            // Engine update
+            const eLvl = gameState.upgrades.engine;
+            document.getElementById('level-engine').textContent = `Lv.${eLvl}`;
+            document.getElementById('price-engine').textContent = eLvl >= 5 ? "MAX" : `$${UPGRADE_COSTS.engine[eLvl - 1].toLocaleString()}`;
+
+            // Hydraulic update
+            const hLvl = gameState.upgrades.hydraulic;
+            document.getElementById('level-hydraulic').textContent = `${120 + (hLvl * 30)} bar`;
+            document.getElementById('price-hydraulic').textContent = hLvl >= 5 ? "MAX" : `$${UPGRADE_COSTS.hydraulic[hLvl - 1].toLocaleString()}`;
+
+            // Bucket update
+            const bLvl = gameState.upgrades.bucket;
+            document.getElementById('level-bucket').textContent = `${(0.45 + (bLvl * 0.15)).toFixed(2)} ㎥`;
+            document.getElementById('price-bucket').textContent = bLvl >= 5 ? "MAX" : `$${UPGRADE_COSTS.bucket[bLvl - 1].toLocaleString()}`;
+        }
+
+        function updateStatsUI() {
+            document.getElementById('score-display').textContent = gameState.score;
+            document.getElementById('cash-display').textContent = `$${gameState.cash.toLocaleString()}`;
+            
+            // 안전망 강화: 로드 카운트 요소 존재 유무 재확인
+            const loadCountEl = document.getElementById('load-count');
+            if (loadCountEl) {
+                loadCountEl.textContent = Math.floor(gameState.truckCurrentLoad);
+            }
+        }
+
+        function updateReputationHearts() {
+            const container = document.getElementById('hearts-container');
+            container.innerHTML = "";
+            for (let i = 0; i < 5; i++) {
+                const heart = document.createElement('i');
+                if (i < gameState.reputation) {
+                    heart.className = "fa-solid fa-heart";
+                } else {
+                    heart.className = "fa-regular fa-heart text-slate-300";
+                }
+                container.appendChild(heart);
+            }
+        }
+
+        function moveBase(dist) {
+            // Engine upgrade increases movement speed
+            const speedModifier = 1 + (gameState.upgrades.engine * 0.25);
+            joints.base.x = Math.max(50, Math.min(350, joints.base.x + (dist * speedModifier)));
+            updateKinematics();
+            playSound('engine');
+        }
+
+        function adjustHydraulics(joint, direction) {
+            // Hydraulic upgrade increases joint speed
+            const speed = 0.05 * (1 + (gameState.upgrades.hydraulic * 0.3));
+            
+            if (joint === 'boom') {
+                boomAngle += direction * speed;
+            } else if (joint === 'arm') {
+                armAngle += direction * speed;
+            } else if (joint === 'bucket') {
+                bucketAngle += direction * speed;
+            }
+
+            // Lock boundaries
+            boomAngle = Math.max(-Math.PI * 0.9, Math.min(-Math.PI * 0.1, boomAngle));
+            armAngle = Math.max(-Math.PI * 0.8, Math.min(Math.PI * 0.8, armAngle));
+            bucketAngle = Math.max(-Math.PI * 0.9, Math.min(Math.PI * 0.9, bucketAngle));
+
+            updateKinematics();
+        }
+
+        function initPhysicsSimulator() {
+            physicsCanvas = document.getElementById('physics-canvas');
+            if (!physicsCanvas) return;
+            pCtx = physicsCanvas.getContext('2d');
+
+            physicsCanvas.width = 600;
+            physicsCanvas.height = 340;
+
+            // Populate soil hill
+            soilParticles = [];
+            for (let i = 0; i < MAX_SOIL; i++) {
+                soilParticles.push({
+                    x: 170 + Math.random() * 110,
+                    y: 280 + Math.random() * 40,
+                    vx: 0,
+                    vy: 0,
+                    radius: 3 + Math.random() * 3,
+                    color: i % 2 === 0 ? '#d97706' : '#f59e0b', // Warm golden sand colors
+                    isCarried: false
+                });
+            }
+
+            // Recalculate kinematics structures
+            updateKinematics();
+
+            // Attach listeners
+            document.removeEventListener('keydown', handleKeyDown);
+            document.addEventListener('keydown', handleKeyDown);
+
+            // Cancel any prior loop
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
+
+        function handleKeyDown(e) {
+            // Prevent scroll
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+                e.preventDefault();
+            }
+
+            // A / D controls base movement
+            if (e.key === 'a' || e.key === 'A') {
+                moveBase(-8);
+            } else if (e.key === 'd' || e.key === 'D') {
+                moveBase(8);
+            }
+
+            // Keyboard Up / Down controls Boom
+            if (e.key === 'ArrowUp') {
+                adjustHydraulics('boom', -0.3);
+            } else if (e.key === 'ArrowDown') {
+                adjustHydraulics('boom', 0.3);
+            }
+
+            // Keyboard Left / Right controls Arm
+            if (e.key === 'ArrowLeft') {
+                adjustHydraulics('arm', -0.3);
+            } else if (e.key === 'ArrowRight') {
+                adjustHydraulics('arm', 0.3);
+            }
+
+            // W / S controls Bucket 바가지 오목/볼록 조절 (매우 직관적!)
+            if (e.key === 'w' || e.key === 'W') {
+                adjustHydraulics('bucket', -0.3);
+            } else if (e.key === 's' || e.key === 'S') {
+                adjustHydraulics('bucket', 0.3);
+            }
+        }
+
+        function updateKinematics() {
+            // Forward kinematics tracing
+            joints.p1.x = joints.base.x + Math.cos(boomAngle) * joints.boomLength;
+            joints.p1.y = joints.base.y + Math.sin(boomAngle) * joints.boomLength;
+
+            joints.p2.x = joints.p1.x + Math.cos(boomAngle + armAngle) * joints.armLength;
+            joints.p2.y = joints.p1.y + Math.sin(boomAngle + armAngle) * joints.armLength;
+
+            joints.p3.x = joints.p2.x + Math.cos(boomAngle + armAngle + bucketAngle) * joints.bucketLength;
+            joints.p3.y = joints.p2.y + Math.sin(boomAngle + armAngle + bucketAngle) * joints.bucketLength;
+        }
+
+        function getDistance(x1, y1, x2, y2) {
+            return Math.sqrt((x2 - x1)**2 + (y2 - y1)**2);
+        }
+
+        function updatePhysics() {
+            if (!gameState.isPlaying) return;
+
+            const bucketTip = joints.p3;
+            const bucketJoint = joints.p2;
+
+            // Upgrade-dependent bucket capacity radius
+            const scoopingRadius = 24 + (gameState.upgrades.bucket * 4);
+
+            soilParticles.forEach(p => {
+                if (p.isCarried) {
+                    const gravityY = Math.sin(boomAngle + armAngle + bucketAngle);
+
+                    if (gravityY > 0.45) {
+                        // Sliding off bucket back down to gravity
+                        p.isCarried = false;
+                        p.vx = Math.cos(boomAngle + armAngle + bucketAngle) * 5 + (Math.random() - 0.5) * 2;
+                        p.vy = gravityY * 4;
+                    } else {
+                        // Retain nicely on scoop line
+                        const offsetX = (Math.random() - 0.5) * 12;
+                        p.x = (bucketJoint.x + bucketTip.x) / 2 + offsetX;
+                        p.y = (bucketJoint.y + bucketTip.y) / 2 + Math.random() * 8;
+                        p.vx = 0;
+                        p.vy = 0;
+                    }
+                } else {
+                    p.vy += 0.28; // gravity
+                    p.vx *= 0.96; // friction
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    // Ground collision limit
+                    if (p.y > 310) {
+                        p.y = 310;
+                        p.vy = 0;
+                        p.vx *= 0.8;
+                    }
+
+                    // Excavator bucket scooping collision
+                    const distToScoop = getDistance(p.x, p.y, (bucketJoint.x + bucketTip.x)/2, (bucketJoint.y + bucketTip.y)/2);
+                    if (distToScoop < scoopingRadius && Math.sin(boomAngle + armAngle + bucketAngle) <= 0.3) {
+                        p.isCarried = true;
+                        playSound('scoop');
+                    }
+
+                    // Truck payload checking
+                    if (p.x > TRUCK.x && p.x < TRUCK.x + TRUCK.w && p.y > TRUCK.y + 40 && p.y < TRUCK.y + TRUCK.h + 20) {
+                        // Collected inside truck!
+                        p.x = 170 + Math.random() * 110; // respawn at sand pile
+                        p.y = 285 + Math.random() * 20;
+                        p.vx = 0;
+                        p.vy = 0;
+
+                        // Increment load
+                        gameState.truckCurrentLoad += (1 + (gameState.upgrades.bucket * 0.5)); // More capacity = fills faster!
+                        if (gameState.truckCurrentLoad >= 100) {
+                            gameState.truckCurrentLoad = 100;
+                            // Truck Completed!
+                            paveTruckVictory();
+                        }
+                        updateStatsUI();
+                    }
+                }
+            });
+        }
+
+        function paveTruckVictory() {
+            playSound('coin');
+            
+            // Rewards based on speed and level
+            const stageRewardCash = 1000 + (gameState.level * 350);
+            const stageScore = 500 + Math.floor(gameState.truckPatience * 10);
+            
+            gameState.cash += stageRewardCash;
+            gameState.score += stageScore;
+            gameState.level++;
+
+            showFloatingMessage(`🎉 상차 완료! 보상금 $${stageRewardCash} 획득! (+${stageScore}점)`);
+
+            // Next mission immediately
+            spawnNewTruck();
+        }
+
+        function renderSimulation() {
+            pCtx.clearRect(0, 0, physicsCanvas.width, physicsCanvas.height);
+
+            // Draw Sunny Sky Bright Gradient
+            let skyGrad = pCtx.createLinearGradient(0, 0, 0, 310);
+            skyGrad.addColorStop(0, '#bae6fd'); // bright blue sky
+            skyGrad.addColorStop(1, '#f0f9ff'); // soft white horizons
+            pCtx.fillStyle = skyGrad;
+            pCtx.fillRect(0, 0, physicsCanvas.width, 310);
+
+            // Draw grassy lawn ground line
+            pCtx.fillStyle = '#4ade80'; // soft grass green
+            pCtx.fillRect(0, 310, physicsCanvas.width, 30);
+
+            // Draw some background clouds
+            pCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            pCtx.beginPath();
+            pCtx.arc(100, 60, 20, 0, Math.PI * 2);
+            pCtx.arc(125, 55, 25, 0, Math.PI * 2);
+            pCtx.arc(150, 60, 20, 0, Math.PI * 2);
+            pCtx.fill();
+
+            pCtx.beginPath();
+            pCtx.arc(420, 80, 18, 0, Math.PI * 2);
+            pCtx.arc(440, 75, 22, 0, Math.PI * 2);
+            pCtx.arc(460, 80, 18, 0, Math.PI * 2);
+            pCtx.fill();
+
+            // --- 굴착기 그리기 (노란색으로 보강 & 외곽 테두리 적용) ---
+            // Cabin Base Body
+            pCtx.fillStyle = '#facc15'; // High-visibility Safety Yellow
+            pCtx.strokeStyle = '#1e293b';
+            pCtx.lineWidth = 3.5;
+            pCtx.beginPath();
+            pCtx.arc(joints.base.x, joints.base.y + 10, 24, 0, Math.PI, true);
+            pCtx.closePath();
+            pCtx.fill();
+            pCtx.stroke();
+
+            // Cabin Window
+            pCtx.fillStyle = '#1e293b';
+            pCtx.fillRect(joints.base.x + 4, joints.base.y - 12, 12, 12);
+
+            // Black Tracks
+            pCtx.fillStyle = '#1e293b';
+            pCtx.strokeStyle = '#facc15';
+            pCtx.lineWidth = 1.5;
+            pCtx.fillRect(joints.base.x - 35, joints.base.y + 15, 70, 15);
+            pCtx.strokeRect(joints.base.x - 35, joints.base.y + 15, 70, 15);
+
+            // --- 덤프트럭 그리기 (노란색으로 선명하게 교체) ---
+            // Truck Cabin (Yellow)
+            pCtx.fillStyle = '#facc15';
+            pCtx.strokeStyle = '#1e293b';
+            pCtx.lineWidth = 3.5;
+            pCtx.fillRect(TRUCK.x + TRUCK.w - 30, TRUCK.y + 35, 30, 45);
+            pCtx.strokeRect(TRUCK.x + TRUCK.w - 30, TRUCK.y + 35, 30, 45);
+
+            // Truck Window
+            pCtx.fillStyle = '#ffffff';
+            pCtx.strokeStyle = '#1e293b';
+            pCtx.lineWidth = 2;
+            pCtx.fillRect(TRUCK.x + TRUCK.w - 18, TRUCK.y + 40, 15, 15);
+            pCtx.strokeRect(TRUCK.x + TRUCK.w - 18, TRUCK.y + 40, 15, 15);
+
+            // Truck Container Cargo Box (Yellow Outer Frame)
+            pCtx.fillStyle = '#facc15';
+            pCtx.strokeStyle = '#1e293b';
+            pCtx.lineWidth = 3.5;
+            pCtx.fillRect(TRUCK.x, TRUCK.y + 45, TRUCK.w - 30, TRUCK.h - 40);
+            pCtx.strokeRect(TRUCK.x, TRUCK.y + 45, TRUCK.w - 30, TRUCK.h - 40);
+            
+            // Draw current Load inside truck container visually
+            const loadedHeight = ((TRUCK.h - 40) * (gameState.truckCurrentLoad / 100));
+            pCtx.fillStyle = '#b45309'; // sand load
+            pCtx.fillRect(TRUCK.x + 4, TRUCK.y + 85 - loadedHeight, TRUCK.w - 38, loadedHeight);
+
+            // Truck wheels
+            pCtx.fillStyle = '#0f172a';
+            pCtx.strokeStyle = '#ffffff';
+            pCtx.lineWidth = 2;
+            pCtx.beginPath();
+            pCtx.arc(TRUCK.x + 25, TRUCK.y + 85, 12, 0, Math.PI * 2);
+            pCtx.arc(TRUCK.x + 85, TRUCK.y + 85, 12, 0, Math.PI * 2);
+            pCtx.fill();
+            pCtx.stroke();
+
+            // Text Label
+            pCtx.fillStyle = '#1e293b';
+            pCtx.font = "bold 9px sans-serif";
+            pCtx.fillText(`적재율: ${Math.floor(gameState.truckCurrentLoad)}%`, TRUCK.x + 10, TRUCK.y + 35);
+
+            // --- 유압 팔 그리기 ---
+            // Boom (Safety Yellow)
+            drawArmSegment(joints.base.x, joints.base.y, joints.p1.x, joints.p1.y, 14, '#facc15');
+            // Arm (Safety Yellow)
+            drawArmSegment(joints.p1.x, joints.p1.y, joints.p2.x, joints.p2.y, 10, '#facc15');
+
+            // Draw Curved Scoop Bucket (Safety Yellow with Dark Backing)
+            let p2 = joints.p2;
+            let p3 = joints.p3;
+            let bAngle = boomAngle + armAngle + bucketAngle;
+
+            pCtx.save();
+            pCtx.fillStyle = '#facc15';
+            pCtx.strokeStyle = '#1e293b';
+            pCtx.lineWidth = 3.5;
+            pCtx.lineJoin = 'round';
+            pCtx.beginPath();
+
+            pCtx.moveTo(p2.x, p2.y);
+
+            let backAngle = bAngle - Math.PI / 2.2;
+            let backLength = joints.bucketLength * 0.75;
+            let bx = p2.x + Math.cos(backAngle) * backLength;
+            let by = p2.y + Math.sin(backAngle) * backLength;
+
+            pCtx.quadraticCurveTo(bx, by, p3.x, p3.y);
+
+            let teethAngle = bAngle + Math.PI / 6;
+            let tx = p3.x + Math.cos(teethAngle) * 9;
+            let ty = p3.y + Math.sin(teethAngle) * 9;
+            pCtx.lineTo(tx, ty);
+
+            let innerAngle = bAngle - Math.PI / 3;
+            let innerLength = joints.bucketLength * 0.5;
+            let ix = p2.x + Math.cos(innerAngle) * innerLength;
+            let iy = p2.y + Math.sin(innerAngle) * innerLength;
+            pCtx.lineTo(ix, iy);
+
+            pCtx.closePath();
+            pCtx.fill();
+            pCtx.stroke();
+
+            // Joint hinge point
+            pCtx.fillStyle = '#1e293b';
+            pCtx.beginPath();
+            pCtx.arc(p2.x, p2.y, 5, 0, Math.PI * 2);
+            pCtx.fill();
+            pCtx.restore();
+
+            // Joint Circles to visually indicate drag points
+            drawJointIndicator(joints.p1.x, joints.p1.y, 'boom');
+            drawJointIndicator(joints.p2.x, joints.p2.y, 'arm');
+            drawJointIndicator(joints.p3.x, joints.p3.y, 'bucket');
+
+            // Render Soil particles inside simulation
+            soilParticles.forEach(p => {
+                pCtx.fillStyle = p.color;
+                pCtx.beginPath();
+                pCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                pCtx.fill();
+            });
+        }
+
+        function drawArmSegment(x1, y1, x2, y2, thickness, color) {
+            // Draw Outer thick black line first for high visibility
+            pCtx.strokeStyle = '#1e293b';
+            pCtx.lineWidth = thickness + 5;
+            pCtx.lineCap = 'round';
+            pCtx.beginPath();
+            pCtx.moveTo(x1, y1);
+            pCtx.lineTo(x2, y2);
+            pCtx.stroke();
+
+            // Draw Inner colored line
+            pCtx.strokeStyle = color;
+            pCtx.lineWidth = thickness;
+            pCtx.beginPath();
+            pCtx.moveTo(x1, y1);
+            pCtx.lineTo(x2, y2);
+            pCtx.stroke();
+        }
+
+        function drawJointIndicator(x, y, jointName) {
+            const isTargeted = (draggedJoint === jointName);
+            pCtx.fillStyle = isTargeted ? '#f59e0b' : '#334155';
+            pCtx.strokeStyle = '#ffffff';
+            pCtx.lineWidth = 1.5;
+            pCtx.beginPath();
+            pCtx.arc(x, y, 6, 0, Math.PI * 2);
+            pCtx.fill();
+            pCtx.stroke();
+        }
+
+        function gameLoop() {
+            // 물리 처리는 게임이 진행중일때만, 그리기 렌더링은 항상 돌아가도록 조정!
+            if (gameState.isPlaying) {
+                updatePhysics();
+            }
+            renderSimulation();
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function handleMouseDown(e) {
+            const mouse = getMouseCoords(e, physicsCanvas);
+            
+            if (getDistance(mouse.x, mouse.y, joints.p1.x, joints.p1.y) < 25) {
+                draggedJoint = 'boom';
+            } else if (getDistance(mouse.x, mouse.y, joints.p2.x, joints.p2.y) < 25) {
+                draggedJoint = 'arm';
+            } else if (getDistance(mouse.x, mouse.y, joints.p3.x, joints.p3.y) < 25) {
+                draggedJoint = 'bucket';
+            }
+        }
+
+        function handleTouchStart(e) {
+            e.preventDefault();
+            handleMouseDown(e);
+        }
+
+        function handleMouseMove(e) {
+            if (!draggedJoint) return;
+            const mouse = getMouseCoords(e, physicsCanvas);
+
+            if (draggedJoint === 'boom') {
+                const dy = mouse.y - joints.base.y;
+                const dx = mouse.x - joints.base.x;
+                boomAngle = Math.atan2(dy, dx);
+            } else if (draggedJoint === 'arm') {
+                const dy = mouse.y - joints.p1.y;
+                const dx = mouse.x - joints.p1.x;
+                armAngle = Math.atan2(dy, dx) - boomAngle;
+            } else if (draggedJoint === 'bucket') {
+                const dy = mouse.y - joints.p2.y;
+                const dx = mouse.x - joints.p2.x;
+                bucketAngle = Math.atan2(dy, dx) - (boomAngle + armAngle);
+            }
+
+            boomAngle = Math.max(-Math.PI, Math.min(0, boomAngle)); 
+            updateKinematics();
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            handleMouseMove(e);
+        }
+
+        function handleMouseUp() {
+            draggedJoint = null;
+        }
+
+        function getMouseCoords(e, canvasEl) {
+            const rect = canvasEl.getBoundingClientRect();
+            const scaleX = canvasEl.width / rect.width;
+            const scaleY = canvasEl.height / rect.height;
+
+            if (e.touches && e.touches.length > 0) {
+                return {
+                    x: (e.touches[0].clientX - rect.left) * scaleX,
+                    y: (e.touches[0].clientY - rect.top) * scaleY
+                };
+            }
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        }
+
+        function showFloatingMessage(msg) {
+            const toast = document.createElement('div');
+            toast.className = "fixed bottom-5 right-5 bg-white border-2 border-amber-500 px-4 py-3 rounded-xl shadow-2xl z-50 text-xs font-bold text-slate-800 animate-bounce flex items-center gap-2";
+            toast.innerHTML = `<i class="fa-solid fa-helmet-safety text-amber-500"></i> ${msg}`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 2500);
+        }
+
+        // Global UI initialization on load
+        window.onload = function() {
+            // 물리 엔진 시뮬레이터 로드 및 드로잉 시작
+            initPhysicsSimulator();
+
+            // UI 텍스트 및 상점 데이터 동기화
+            updateShopUI();
+            updateStatsUI();
+        };
+    </script>
+</body>
+</html>
